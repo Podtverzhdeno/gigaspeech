@@ -1,23 +1,23 @@
-# 🎤 Speech Writer — Мультиагентный спичрайтер
+# Speech Writer — Мультиагентный спичрайтер
 
 Генерирует тексты публичных выступлений по методу Билла Шмарцо (ex-CTO Dell).
 
 ## Архитектура
 
 ```
-START → 📝 Planner → 👨‍💻 Writer → 🧑‍⚖️ Critic
+START →  Planner →  Writer →  Critic
                           ↑               ↓
-                     🌐 Retriever ←── (retrieve)
+                      Retriever ←── (retrieve)
                                           ↓
                                          END
 ```
 
 | Агент | Роль | Модель |
 |---|---|---|
-| 📝 Planner | Анализирует тему, биографию, Указ №309 → структура + ТЗ | GigaChat-Max |
-| 👨‍💻 Writer | Пишет речь по ТЗ с учётом критики и цитат | GPT-4o |
-| 🧑‍⚖️ Critic | Оценивает речь: `good` / `fix` / `retrieve` | GigaChat-Max |
-| 🌐 Retriever | Ищет цитаты из книг Маркова (RAG + Chroma) | GigaChat Embeddings |
+|  Planner | Анализирует тему, биографию, Указ №309 → структура + ТЗ | GigaChat-Max |
+|  Writer | Пишет речь по ТЗ с учётом критики и цитат | GPT-4o |
+|  Critic | Оценивает речь: `good` / `fix` / `retrieve` | GigaChat-Max |
+|  Retriever | Ищет цитаты из книг Маркова (RAG + Chroma) | GigaChat Embeddings |
 
 ## Структура проекта
 
