@@ -1,0 +1,9 @@
+langchain
+langchain-gigachat
+langchain-community
+langchain-chroma
+langchain-openai
+langgraph
+tenacity
+requests
+python-dotenv
