@@ -28,3 +28,8 @@ giga_embed = GigaChatEmbeddings(
     verify_ssl_certs=False,
     access_token=GIGA_CREDENTIALS,
 )
+
+route_model = ChatOpenAI(
+    model="nvidia/nemotron-3-super-120b-a12b:free",
+    temperature=1
+)
