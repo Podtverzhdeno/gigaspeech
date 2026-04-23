@@ -3,7 +3,9 @@ langchain-gigachat
 langchain-community
 langchain-chroma
 langchain-openai
+langchain-huggingface
 langgraph
 tenacity
 requests
 python-dotenv
+sentence-transformers

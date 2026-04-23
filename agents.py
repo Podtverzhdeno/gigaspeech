@@ -6,7 +6,7 @@ from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langgraph.types import Command
 
 from state import SpeechWriterState
-from llm import giga, chatgpt
+from llm import giga
 
 class SpeechPlan(BaseModel):
     """Выходная схема планировщика."""
@@ -75,11 +75,6 @@ WRITE_PROMPT = """Ты - агент-спичрайтер. Пишешь речь 
 {relevant_quotes_309}
 </QUOTES_309>
 
-Информация о мероприятии:
-<EVENT_INFO>
-{event_info}
-</EVENT_INFO>
-
 План выступления от коллеги-планировщика:
 <SPEECH_PLAN>
 Структура: {speech_structure}
@@ -110,17 +105,16 @@ WRITE_PROMPT = """Ты - агент-спичрайтер. Пишешь речь 
 def write_speech(state: SpeechWriterState, all_content: dict) -> dict:
     docs = state.get("retriever_docs", "")
     critique = state.get("critique", [""])[-1]
-    print(f"Writer начинает работу | Объём цитат из книг: {len(docs)} символов")
+    print(f"📝 Writer начинает работу | Объём цитат из книг: {len(docs)} символов")
 
     prompt = ChatPromptTemplate.from_messages([("system", WRITE_PROMPT)])
-    chain = prompt | chatgpt | StrOutputParser()
+    chain = prompt | giga | StrOutputParser()
 
     result = chain.invoke({
         "speech_topic": state["speech_topic"],
         "time_to_speak": state["time_to_speak"],
         "speaker_bio": state["speaker_bio"],
         "relevant_quotes_309": state["relevant_quotes_309"],
-        "event_info": all_content["ai_conf.md"],
         "speech_structure": state["speech_structure"],
         "speech_tech_spec": state["speech_tech_spec"],
         "result_speech": state.get("result_speech", ""),

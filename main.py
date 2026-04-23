@@ -2,7 +2,7 @@ import uuid
 import time
 from graph import build_graph
 from config import speaker_bio, inputs
-from llm import giga, chatgpt
+from llm import giga
 
 def main():
     graph = build_graph()

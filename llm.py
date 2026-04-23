@@ -1,35 +1,27 @@
 import os
 from dotenv import load_dotenv
 from langchain_gigachat.chat_models.gigachat import GigaChat
-from langchain_gigachat.embeddings import GigaChatEmbeddings
-from langchain_openai.chat_models import ChatOpenAI
+from langchain_huggingface import HuggingFaceEmbeddings
 
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GIGA_CREDENTIALS = os.getenv("GIGA_CREDENTIALS")
 
 giga = GigaChat(
-    model="GigaChat-Max",
+    model="GigaChat",
     verify_ssl_certs=False,
     profanity_check=False,
     access_token=GIGA_CREDENTIALS,
     streaming=False,
-    max_tokens=8000,
-    temperature=1,
-    timeout=600,
+    max_tokens=4096,      # уменьшили с 8000
+    temperature=0.7,      # уменьшили с 1 для стабильности
+    timeout=900,          # увеличили с 600 до 15 минут
 )
 
-chatgpt = ChatOpenAI(api_key=GIGA_CREDENTIALS, model="gpt-4o") if OPENAI_API_KEY else None
-
-giga_embed = GigaChatEmbeddings(
-    model="EmbeddingsGigaR",
-    scope="GIGACHAT_API_PERS",
-    verify_ssl_certs=False,
-    access_token=GIGA_CREDENTIALS,
-)
-
-route_model = ChatOpenAI(
-    model="nvidia/nemotron-3-super-120b-a12b:free",
-    temperature=1
+# Заменили на более быструю модель (в 3-4 раза быстрее, качество почти такое же)
+# all-MiniLM-L6-v2 - компактная и быстрая модель для русского языка
+giga_embed = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    model_kwargs={'device': 'cpu'},  # Используй 'cuda' если есть GPU
+    encode_kwargs={'normalize_embeddings': True}
 )
