@@ -1,13 +1,14 @@
-"""MCP-сервер для спичрайтера.
+"""MCP-сервер для ReAct-спичрайтера.
 
-Exposes a single MCP tool, ``generate_speech(topic, duration, speaker_bio="")``, which runs the
-multi-agent LangGraph pipeline and returns the resulting speech as Markdown text. Uses the official
-MCP Python SDK (`mcp[cli]`).
+Поднимает MCP-сервер по протоколу stdio и публикует один инструмент:
+``generate_speech_tool(topic, duration, speaker_bio="")``. Внутри запускается тот же
+ReAct-агент из ``graph.py``, что и в CLI.
 
-Запуск напрямую (stdio):
+Запуск:
     python mcp_server.py
+    speech-writer-mcp           # если установлен пакет
 
-Регистрация в Claude Desktop / Cursor / любом другом MCP-клиенте — см. README.md.
+Регистрация в Claude Desktop / Cursor — см. README.md.
 """
 from __future__ import annotations
 
@@ -30,10 +31,14 @@ def generate_speech_tool(
 ) -> str:
     """Сгенерировать текст публичного выступления по теме и длительности.
 
+    Запускает ReAct-агента, который сам решает, какие инструменты вызывать
+    (поиск цитат, планирование, написание, критика), и возвращает финальный
+    текст речи в Markdown.
+
     Args:
         topic: Тема доклада. Например: "Будущее AI-агентов в Web3".
         duration: Целевое время выступления. Например: "5 минут", "10 минут".
-        speaker_bio: Опциональная биография спикера, чтобы агенты адаптировали тон.
+        speaker_bio: Опциональная биография спикера, чтобы агент адаптировал тон.
 
     Returns:
         Готовый текст речи в формате Markdown.
@@ -48,7 +53,7 @@ def generate_speech_tool(
 
 @mcp.resource("speechwriter://config")
 def get_config() -> dict[str, Any]:
-    """Возвращает текущую конфигурацию по умолчанию (для дебага из MCP-клиента)."""
+    """Текущая конфигурация по умолчанию (для дебага из MCP-инспектора)."""
     return {
         "default_topic": DEFAULT_TOPIC,
         "default_duration": DEFAULT_DURATION,
