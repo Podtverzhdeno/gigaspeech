@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 
 from config import DEFAULT_DURATION, DEFAULT_SPEAKER_BIO, DEFAULT_TOPIC
-from graph import build_agent
+from graph import build_agent, last_speech, reset_state
 
 _AGENT = None
 DEFAULT_RECURSION_LIMIT = 40
@@ -43,6 +43,7 @@ def generate_speech(
 ) -> str:
     """Запускает ReAct-агента и возвращает финальный текст речи."""
     agent = get_agent()
+    reset_state()
     config = {
         "configurable": {"thread_id": str(uuid.uuid4())},
         "recursion_limit": recursion_limit,
@@ -81,10 +82,12 @@ def generate_speech(
                 snippet = content[:80].replace("\n", " ")
                 print(f"[{elapsed}s] {node_name}: {kind} → {snippet}")
 
-    speech = ""
-    if final_message is not None:
-        speech = (getattr(final_message, "content", "") or "")
-        speech = speech.replace("```markdown", "").replace("```", "").strip()
+    # Берём чистую (прошедшую self-verify в write_speech) последнюю речь из state. Если её нет —
+    # как fallback используем content финального AIMessage.
+    speech = last_speech()
+    if not speech and final_message is not None:
+        speech = getattr(final_message, "content", "") or ""
+    speech = speech.replace("```markdown", "").replace("```", "").strip()
     return speech
 
 
