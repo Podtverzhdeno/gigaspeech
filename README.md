@@ -1,60 +1,143 @@
-# Speech Writer — Мультиагентный спичрайтер
+# Speech Writer — Мультиагентный спичрайтер с MCP
 
-Генерирует тексты публичных выступлений по методу Билла Шмарцо (ex-CTO Dell).
+Мультиагентная LangGraph-система, которая по теме доклада и его длительности возвращает готовый текст речи.
+Релевантные факты и цитаты подбираются из векторного индекса Chroma поверх корпуса markdown-документов.
+Доступна как CLI и как **MCP-сервер** (Model Context Protocol).
 
 ## Архитектура
 
 ```
-START →  Planner →  Writer →  Critic
-                          ↑               ↓
-                      Retriever ←── (retrieve)
-                                          ↓
-                                         END
+START → Retriever → Planner → Writer → Critic
+              ↑                            │
+              └────── retrieve ────────────┤
+                                           ├──── fix ──→ Writer
+                                           └──── good ──→ END
 ```
 
 | Агент | Роль | Модель |
 |---|---|---|
-|  Planner | Анализирует тему, биографию, Указ №309 → структура + ТЗ | GigaChat-Max |
-|  Writer | Пишет речь по ТЗ с учётом критики и цитат | GPT-4o |
-|  Critic | Оценивает речь: `good` / `fix` / `retrieve` | GigaChat-Max |
-|  Retriever | Ищет цитаты из книг Маркова (RAG + Chroma) | GigaChat Embeddings |
+| Retriever | Ищет релевантные фрагменты в Chroma по теме (1-я итерация) и по тексту речи (далее) | HuggingFace `paraphrase-multilingual-MiniLM-L12-v2` |
+| Planner | Формирует структуру речи и техническое задание | GigaChat |
+| Writer | Пишет/переписывает речь по плану и цитатам из корпуса | GigaChat |
+| Critic | Решает: `good` (готово) / `fix` (переписать) / `retrieve` (нужны ещё цитаты) | GigaChat |
+
+Critic ограничен **8 итерациями**, чтобы граф не зацикливался.
 
 ## Структура проекта
 
 ```
-speech_writer/
-├── main.py          # Точка входа
-├── graph.py         # Сборка LangGraph графа
-├── agents.py        # Все 4 агента
-├── state.py         # SpeechWriterState (TypedDict)
-├── llm.py           # Инициализация GigaChat и GPT-4o
-├── loader.py        # Загрузка документов с GitHub
-├── vectorstore.py   # Chroma + GigaChat Embeddings
-├── config.py        # Биография спикера и входные данные
+gigaspeech/
+├── main.py          # CLI-точка входа (--topic / --duration / --bio)
+├── mcp_server.py    # MCP-сервер (FastMCP, stdio)
+├── graph.py         # Сборка графа LangGraph
+├── agents.py        # Реализация всех 4 агентов
+├── state.py         # SpeechWriterState
+├── llm.py           # GigaChat + HuggingFace embeddings
+├── loader.py        # Загрузка корпуса (локальные файлы либо upstream)
+├── vectorstore.py   # Chroma-индекс по всему корпусу
+├── config.py        # DEFAULT_TOPIC / DEFAULT_DURATION / build_inputs(...)
+├── ukaz_309.md, markov_1.md, markov_2.md, ai_conf.md  # дефолтный корпус
 ├── requirements.txt
+├── pyproject.toml
 └── .env.example
 ```
 
-## Запуск
+## Установка
 
 ```bash
-# 1. Установить зависимости
+git clone https://github.com/Podtverzhdeno/gigaspeech.git
+cd gigaspeech
+
+# Вариант A — pip
 pip install -r requirements.txt
 
-# 2. Создать .env из шаблона и заполнить ключи
-cp .env.example .env
+# Вариант B — uv
+uv sync
 
-# 3. Запустить
-python main.py
+# Заполнить ключ GigaChat
+cp .env.example .env
+# отредактировать .env: GIGA_CREDENTIALS=<твой access token>
 ```
 
-## Документы (загружаются автоматически)
+## Запуск из CLI
 
-- `ukaz_309.md` — Указ Президента №309 о нац. целях до 2036
-- `markov_1.md` — Сергей Марков. Охота на электроовец. Том 1
-- `markov_2.md` — Сергей Марков. Охота на электроовец. Том 2
-- `ai_conf.md` — Информация о конференции AI Agents BuildCon
+```bash
+python main.py --topic "Будущее AI-агентов в Web3" --duration "7 минут"
+python main.py --topic "AI в малом бизнесе" --duration "5 минут" --bio "Иван Иванов, CTO ..."
+python main.py --topic "..." --duration "..." --output my_speech.md --quiet
+```
+
+При первом запуске будет построена векторная БД (5–10 мин на CPU). Последующие запуски используют
+`./chroma_db` без переиндексации.
+
+Готовая речь печатается в stdout и сохраняется в `result_speech.md` (или в файл из `--output`).
+
+## Запуск как MCP-сервер
+
+MCP (Model Context Protocol) — открытый протокол, по которому LLM-клиенты (Claude Desktop, Cursor,
+LangGraph-агенты, и др.) могут вызывать внешние инструменты. Этот репозиторий предоставляет один
+инструмент — `generate_speech_tool(topic, duration, speaker_bio="")`.
+
+### Запуск напрямую (stdio)
+
+```bash
+python mcp_server.py
+# или, если установлен как пакет:
+speech-writer-mcp
+```
+
+### Регистрация в Claude Desktop
+
+Открой `~/.config/Claude/claude_desktop_config.json` (Linux) или
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) и добавь:
+
+```json
+{
+  "mcpServers": {
+    "speech-writer": {
+      "command": "python",
+      "args": ["/абсолютный/путь/к/gigaspeech/mcp_server.py"],
+      "env": {
+        "GIGA_CREDENTIALS": "<твой access token>"
+      }
+    }
+  }
+}
+```
+
+После рестарта Claude Desktop в чате появится инструмент `generate_speech_tool` — его можно вызвать
+запросом «сгенерируй речь по теме ... на 5 минут».
+
+### Регистрация в Cursor
+
+`Settings → MCP → Add new MCP server`, тип **stdio**, команда: `python /path/to/gigaspeech/mcp_server.py`.
+
+### Проверка через MCP Inspector
+
+```bash
+pip install "mcp[cli]"
+mcp dev mcp_server.py
+```
+
+Откроется веб-инспектор, в котором можно вручную дёрнуть `generate_speech_tool`.
+
+## Корпус документов
+
+В дефолтной поставке индексируются 4 файла:
+- `ukaz_309.md` — Указ Президента РФ №309 о нац. целях развития до 2036 года
+- `markov_1.md` / `markov_2.md` — Сергей Марков, «Охота на электроовец», тома 1 и 2
+- `ai_conf.md` — программа AI Agents BuildCon
+
+Чтобы подменить корпус — положи свои `*.md` рядом с модулями и удали `chroma_db/` (БД пересоберётся
+при следующем запуске). Либо используй `loader.load_documents_from_dir(path)` из своего кода.
+
+## Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `GIGA_CREDENTIALS` | Access token GigaChat (`langchain-gigachat`) |
+| `OPENAI_API_KEY` | Зарезервирован, в текущей реализации не используется |
 
 ## Результат
 
-Речь сохраняется в `result_speech.md`
+CLI пишет речь в `result_speech.md` (или путь из `--output`); MCP-инструмент возвращает её строкой.
